@@ -1510,12 +1510,38 @@
 
   // Main 60 FPS Animation Loop
   let lastTime = performance.now();
+
+  // Mobile UI strip elements (grabbed once for performance)
+  const _mobScore = document.getElementById("mob-score");
+  const _mobLevel = document.getElementById("mob-level");
+  const _mobTimer = document.getElementById("mob-timer");
+  const _mobHs    = document.getElementById("mob-hs");
+
+  function updateMobileUI(game) {
+    if (!_mobScore) return; // not present / desktop
+    _mobScore.textContent = `🍎 ${game.score}`;
+    const frenzy = game.level >= 4 ? " 🔥" : "";
+    _mobLevel.textContent = `⭐ Lv.${game.level}${frenzy}`;
+    if (_mobHs) _mobHs.textContent = `🏆 ${game.highScore}`;
+    if (game.isTimedMode && game.level >= 4) {
+      _mobTimer.style.display = "inline-flex";
+      const s = Math.max(0, Math.floor(game.timerSeconds));
+      const mm = String(Math.floor(s / 60)).padStart(2, "0");
+      const ss = String(s % 60).padStart(2, "0");
+      _mobTimer.textContent = `⏳ ${mm}:${ss}`;
+      _mobTimer.style.color = s < 20 ? "#ef4444" : "#facc15";
+    } else {
+      _mobTimer.style.display = "none";
+    }
+  }
+
   function gameLoop(currentTime) {
     const dt = Math.min(100, currentTime - lastTime);
     lastTime = currentTime;
 
     game.update(dt);
     game.render();
+    updateMobileUI(game);
 
     requestAnimationFrame(gameLoop);
   }
