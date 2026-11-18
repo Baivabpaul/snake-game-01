@@ -259,126 +259,173 @@
       display: none;
     }
 
-    @media (hover: none) and (pointer: coarse), (max-width: 768px) {
+    /* ═══════════════════════════════════════════════════════
+       MOBILE PORTRAIT — stack layout, canvas fills width
+    ═══════════════════════════════════════════════════════ */
+    @media (max-width: 768px) and (orientation: portrait) {
+
+      html, body {
+        justify-content: flex-start;
+        padding: 6px 6px 0 6px;
+        padding-left:  max(6px, env(safe-area-inset-left));
+        padding-right: max(6px, env(safe-area-inset-right));
+        padding-bottom: 0;
+        overflow-y: auto;
+      }
+
+      .app-container {
+        gap: 5px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+      }
+
+      /* Slim navbar — icons only */
+      .top-navbar {
+        padding: 5px 10px;
+        border-radius: 8px;
+      }
+      .brand-tag { font-size: 12px; letter-spacing: 0; }
+      .brand-pro-pill { font-size: 8px; padding: 1px 5px; }
+      #audio-label { display: none; }
+      #btn-fullscreen span:last-child { display: none; }
+      .ctrl-pill-btn { padding: 5px 9px; font-size: 14px; gap: 3px; }
+
+      /* Score strip visible */
       .mobile-score-strip {
         display: flex;
         justify-content: space-around;
         align-items: center;
         width: 100%;
-        padding: 7px 14px;
-        background: rgba(15, 22, 32, 0.88);
-        border: 1px solid rgba(74, 222, 128, 0.15);
-        border-radius: 10px;
+        padding: 6px 10px;
+        background: rgba(15, 22, 32, 0.9);
+        border: 1px solid rgba(74, 222, 128, 0.18);
+        border-radius: 8px;
         font-size: 13px;
         font-weight: 700;
         color: #f1f5f9;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-        letter-spacing: 0.3px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.4);
       }
-      .mobile-score-strip span {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
+      .mobile-score-strip span { display: inline-flex; align-items: center; gap: 3px; }
+      #mob-timer { color: #facc15; transition: color 0.3s; }
+
+      /* ── THE KEY FIX: make canvas fill viewport width, let height be calc'd ── */
+      .game-card-wrapper {
+        width: 100%;
+        /* Calculate height from width preserving 1000:700 ratio */
+        /* At 100vw wide (minus 12px padding), height = width * 0.7 */
+        height: calc((100vw - 12px) * 0.70);
+        aspect-ratio: unset;         /* override the fixed 1000/700 ratio */
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 0 16px rgba(34,197,94,0.1);
+        min-height: 200px;
       }
-      #mob-timer {
-        color: #facc15;
-        transition: color 0.3s;
+
+      #gameCanvas {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Shortcuts bar hidden on mobile */
+      .shortcuts-bar { display: none; }
+
+      /* D-pad — larger buttons, centered */
+      .mobile-touch-panel {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        margin-top: 2px;
+      }
+      .dpad-grid {
+        grid-template-columns: repeat(3, 72px);
+        grid-template-rows: repeat(3, 64px);
+        gap: 8px;
+      }
+      .dpad-touch-btn {
+        font-size: 24px;
+        border-radius: 14px;
       }
     }
 
-    /* ─── Mobile Layout Adjustments ─── */
-    @media (max-width: 768px) {
+    /* Portrait very small (≤390px) */
+    @media (max-width: 390px) and (orientation: portrait) {
+      html, body { padding: 4px 4px 0 4px; }
+      .game-card-wrapper { height: calc((100vw - 8px) * 0.70); }
+      .dpad-grid {
+        grid-template-columns: repeat(3, 64px);
+        grid-template-rows: repeat(3, 58px);
+        gap: 7px;
+      }
+      .dpad-touch-btn { font-size: 22px; }
+      .mobile-score-strip { font-size: 12px; padding: 5px 8px; }
+      .brand-tag { font-size: 11px; }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       MOBILE LANDSCAPE — side-by-side: canvas left, dpad right
+    ═══════════════════════════════════════════════════════ */
+    @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+
       html, body {
         justify-content: flex-start;
-        padding-top: 8px;
-        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        padding: 4px 6px;
+        overflow-y: hidden;
       }
 
       .app-container {
-        gap: 8px;
-      }
-
-      /* Compress navbar for small screens */
-      .top-navbar {
-        padding: 6px 10px;
-      }
-
-      /* Show only icon for buttons, hide text labels to save space */
-      #audio-label {
-        display: none;
-      }
-      #btn-fullscreen span:last-child {
-        display: none;
-      }
-
-      /* Slightly smaller buttons */
-      .ctrl-pill-btn {
-        padding: 6px 9px;
-        font-size: 13px;
+        flex-direction: column;
         gap: 4px;
+        height: 100dvh;
       }
 
-      /* Slightly smaller brand text */
-      .brand-tag {
-        font-size: 12px;
+      .top-navbar {
+        padding: 4px 10px;
+        border-radius: 6px;
+        min-height: 0;
+        flex-shrink: 0;
       }
+      .brand-tag { font-size: 11px; }
+      #audio-label { display: none; }
+      #btn-fullscreen span:last-child { display: none; }
+      .ctrl-pill-btn { padding: 4px 8px; font-size: 12px; }
 
-      /* Game card: full width, correct aspect ratio maintained */
-      .game-card-wrapper {
-        border-radius: 8px;
-        box-shadow:
-          0 10px 30px -6px rgba(0, 0, 0, 0.7),
-          0 0 20px -6px rgba(34, 197, 94, 0.1);
-      }
-
-      /* Larger, more thumb-friendly D-pad buttons */
-      .dpad-grid {
-        grid-template-columns: repeat(3, 66px);
-        grid-template-rows: repeat(3, 58px);
+      /* Landscape: canvas + dpad side by side */
+      .landscape-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
         gap: 8px;
+        flex: 1;
+        min-height: 0;
       }
 
-      .dpad-touch-btn {
-        font-size: 22px;
-        border-radius: 12px;
+      .game-card-wrapper {
+        flex: 1;
+        height: 100%;
+        aspect-ratio: unset;
+        max-width: none;
+        border-radius: 6px;
+        min-height: 0;
       }
 
       .mobile-touch-panel {
-        max-width: 230px;
-      }
-    }
-
-    /* ─── Very Small Phones (≤ 390px) ─── */
-    @media (max-width: 390px) {
-      .brand-tag {
-        font-size: 11px;
-        letter-spacing: 0;
-      }
-      .brand-pro-pill {
-        font-size: 8px;
-        padding: 2px 4px;
-      }
-      .ctrl-pill-btn {
-        padding: 5px 8px;
-        font-size: 12px;
+        display: flex;
+        flex-shrink: 0;
+        max-width: none;
+        margin-top: 0;
       }
       .dpad-grid {
-        grid-template-columns: repeat(3, 58px);
-        grid-template-rows: repeat(3, 52px);
+        grid-template-columns: repeat(3, 54px);
+        grid-template-rows: repeat(3, 48px);
         gap: 6px;
       }
-      .dpad-touch-btn {
-        font-size: 20px;
-      }
-      .mobile-touch-panel {
-        max-width: 200px;
-      }
-      .mobile-score-strip {
-        font-size: 12px;
-        padding: 6px 10px;
-      }
+      .dpad-touch-btn { font-size: 20px; border-radius: 10px; }
+
+      .mobile-score-strip { display: none; }
+      .shortcuts-bar { display: none; }
     }
   </style>
 </head>
@@ -439,5 +486,34 @@
   </div>
 
   <script src="game.js"></script>
+  <!-- Landscape layout: wrap canvas+dpad in a row div on mobile landscape -->
+  <script>
+    (function() {
+      function applyLandscape() {
+        var container = document.querySelector('.app-container');
+        var canvas    = document.querySelector('.game-card-wrapper');
+        var dpad      = document.getElementById('mobileControls');
+        var row       = document.querySelector('.landscape-row');
+        var isLandscape = window.innerWidth > window.innerHeight && window.innerWidth <= 900 && window.innerHeight <= 500;
+        if (isLandscape) {
+          if (!row) {
+            row = document.createElement('div');
+            row.className = 'landscape-row';
+            container.insertBefore(row, canvas);
+          }
+          if (!row.contains(canvas)) row.appendChild(canvas);
+          if (!row.contains(dpad))   row.appendChild(dpad);
+        } else {
+          if (row) {
+            if (row.contains(canvas)) container.insertBefore(canvas, row);
+            if (row.contains(dpad))   container.appendChild(dpad);
+          }
+        }
+      }
+      window.addEventListener('resize', applyLandscape);
+      window.addEventListener('orientationchange', function(){ setTimeout(applyLandscape, 150); });
+      applyLandscape();
+    })();
+  </script>
 </body>
 </html>
