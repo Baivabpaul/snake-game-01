@@ -13,7 +13,7 @@ import os
 import sys
 
 PORT = 8000
-DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_local_ip():
