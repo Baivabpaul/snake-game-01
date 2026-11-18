@@ -1,0 +1,3 @@
+pygame-ce==2.5.8
+# Editable install with no version control (snake-game==1.0.0)
+-e /Users/webskitters/Desktop/DEMO_2026/snake-game
