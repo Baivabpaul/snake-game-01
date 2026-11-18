@@ -20,10 +20,10 @@ FOOTER_OFFSET_Y = ARENA_OFFSET_Y + ARENA_HEIGHT      # 668
 
 # Snake configuration
 INITIAL_SNAKE_LENGTH = 3
-INITIAL_SNAKE_SPEED = 140   # ms per movement step
-MIN_SNAKE_SPEED = 50        # fastest possible speed (lowest interval)
-MAX_SNAKE_SPEED = 240       # slowest speed
-SPEED_INCREMENT = 4         # speed increase per food eaten
+INITIAL_SNAKE_SPEED = 165   # ms per movement step (relaxed pace)
+MIN_SNAKE_SPEED = 65        # fastest possible speed (lowest interval)
+MAX_SNAKE_SPEED = 260       # slowest speed
+SPEED_INCREMENT = 3         # speed increase per food eaten
 
 # Scoring
 POINTS_PER_FOOD = 10

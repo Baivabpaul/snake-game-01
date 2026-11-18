@@ -21,10 +21,10 @@
 
   // Speeds & Gameplay
   const INITIAL_SNAKE_LENGTH = 3;
-  const INITIAL_SPEED = 140; // ms per tick
-  const MIN_SPEED = 50;
-  const MAX_SPEED = 240;
-  const SPEED_INCREMENT = 4;
+  const INITIAL_SPEED = 165; // ms per tick (slightly reduced, more relaxed pace)
+  const MIN_SPEED = 65;
+  const MAX_SPEED = 260;
+  const SPEED_INCREMENT = 3;
   const POINTS_PER_FOOD = 10;
 
   // Directions
@@ -768,7 +768,7 @@
         this.isNewRecord ? "#facc15" : "rgb(45, 60, 78)"
       );
       this.drawStatCard(cardStartX + (cardW + gap) * 2, 12, cardW, cardH, "LENGTH", `📏 ${this.snake.length}`, "#ffffff");
-      const speedLevel = Math.max(1, Math.min(10, Math.floor((240 - this.moveInterval) / 19) + 1));
+      const speedLevel = Math.max(1, Math.min(10, Math.floor((260 - this.moveInterval) / 20) + 1));
       this.drawStatCard(cardStartX + (cardW + gap) * 3, 12, cardW, cardH, "SPEED [+/-]", `⚡ Lv.${speedLevel} (${this.moveInterval}ms)`, "#4ade80");
     }
 
@@ -1176,22 +1176,6 @@
     });
   }
 
-  const btnPopup = document.getElementById("btn-popup");
-  if (btnPopup) {
-    btnPopup.addEventListener("click", () => {
-      const w = 1016;
-      const h = 750;
-      const left = Math.max(0, (window.screen.width - w) / 2);
-      const top = Math.max(0, (window.screen.height - h) / 2);
-      const popup = window.open(
-        window.location.href,
-        "SnakeGamePopup",
-        `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
-      );
-      if (popup) popup.focus();
-    });
-  }
-
   const btnFullscreen = document.getElementById("btn-fullscreen");
   if (btnFullscreen) {
     btnFullscreen.addEventListener("click", () => {
@@ -1201,11 +1185,6 @@
         document.exitFullscreen().catch(() => {});
       }
     });
-  }
-
-  // Check if opened as dedicated mini-popup window
-  if (window.opener && window.name === "SnakeGamePopup") {
-    document.body.classList.add("is-popup-window");
   }
 
   // Main 60 FPS Animation Loop

@@ -193,7 +193,7 @@ class HUD:
         )
 
         # Card D: Speed / Pace
-        speed_level = max(1, min(10, int((240 - speed_ms) / 19) + 1))
+        speed_level = max(1, min(10, int((260 - speed_ms) / 20) + 1))
         self._draw_stat_card(
             surface,
             card_start_x + (card_w + spacing) * 3,
