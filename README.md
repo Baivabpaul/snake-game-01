@@ -14,11 +14,20 @@ A realistic, modern, and polished Snake game built with Python and Pygame.
 - **Animated Forked Tongue**: A realistic pink/red forked tongue periodically flicks out, vibrates, and zips back into the mouth.
 - **Knocked-out Death State**: Expressive knocked-out eyes upon collision with walls or self.
 
-### 🍎 Realistic 3D Food (Apples)
-- **Authentic Apple Anatomy**: Dual-lobed apple shape with natural indentations, specular gloss highlight, and a ground drop shadow.
-- **Woody Stem & Green Leaf**: Slender curved brown stalk with a fresh green leaf showing fine leaf vein detailing.
-- **Idle Floating Animation**: Soft vertical floating bob and subtle breathing glow.
-- **Juice Burst Particle FX**: Dynamic fruit juice droplets and sparkles burst outward upon eating, accompanied by a floating "+10" score text.
+### 🍎 Fruit Varieties & Big Bonus Fruits
+- 🍎 **Red Apples (10 pts)**: Classic juicy fruit with stem and leaf.
+- 🍇 **Purple Grapes (20 pts)**: Clustered 3D violet berries (unlocks at Level 2).
+- 🍊 **Fresh Oranges (30 pts)**: Citrus fruit with textured peel (unlocks at Level 3).
+- 🍓 **Sweet Strawberries (40 pts)**: Teardrop ruby fruit with yellow seeds and crown (unlocks at Level 4).
+- ⭐ **Big Golden Bonus Fruit (100 pts)**: Spawns periodically with a radiating aura, sparkling stars, and an active circular countdown ring!
+
+### ⏱️ Level Progression & Level 4+ 2-Minute Frenzy Mode
+- **Levels 1 to 3**: Classic progression. Eat fruits to advance levels as the snake speed gradually picks up.
+- **Level 4 and Above (The 2-Minute Frenzy!)**:
+  - **Automatic 2-Minute Countdown Timer (`02:00`)**: The clock starts ticking down in the HUD!
+  - **100+ Fruits Feast**: The board continuously maintains 6 to 8 fruits simultaneously across the arena for an endless eating feast.
+  - **Challenging Pace**: Snake movement speed slightly increases with each level.
+  - **Time's Up Victory Summary**: When the 2 minutes run out, your total fruits eaten and final score are evaluated for the leaderboard!
 
 ### 🎮 Human-Friendly UI & Live Score HUD
 - **Glassmorphic Top Bar**: Displays live **Score**, persistent **High Score** (with record celebration), **Snake Length**, and current **Speed Level**.

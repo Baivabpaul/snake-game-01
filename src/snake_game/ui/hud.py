@@ -118,10 +118,11 @@ class HUD:
         high_score: int,
         length: int,
         speed_ms: int,
+        level: int = 1,
+        timer_seconds: Optional[float] = None,
         is_new_record: bool = False,
     ):
-        """Draw sleek modern glassmorphism header bar with score cards and stats."""
-        # HUD background strip
+        """Draw sleek modern glassmorphism header bar with score, level, timer, and stats."""
         hud_rect = pygame.Rect(0, 0, WINDOW_WIDTH, ARENA_OFFSET_Y - 4)
         pygame.draw.rect(surface, HUD_BG, hud_rect)
         pygame.draw.line(
@@ -133,24 +134,20 @@ class HUD:
         )
 
         # 1. Left Brand Title Badge
-        badge_rect = pygame.Rect(ARENA_OFFSET_X, 12, 175, 42)
-        pygame.draw.rect(
-            surface, (24, 34, 46), badge_rect, border_radius=8
-        )
-        pygame.draw.rect(
-            surface, (45, 62, 82), badge_rect, width=1, border_radius=8
-        )
+        badge_rect = pygame.Rect(ARENA_OFFSET_X, 12, 150, 42)
+        pygame.draw.rect(surface, (24, 34, 46), badge_rect, border_radius=8)
+        pygame.draw.rect(surface, (45, 62, 82), badge_rect, width=1, border_radius=8)
 
         logo_text = self.font_logo.render("🐍 SNAKE", True, TEXT_ACCENT)
         pro_text = self.font_tiny.render("PRO", True, TEXT_GOLD)
-        surface.blit(logo_text, (badge_rect.x + 12, badge_rect.y + 7))
-        surface.blit(pro_text, (badge_rect.x + 130, badge_rect.y + 14))
+        surface.blit(logo_text, (badge_rect.x + 10, badge_rect.y + 7))
+        surface.blit(pro_text, (badge_rect.x + 115, badge_rect.y + 14))
 
         # 2. Stats Cards
-        card_start_x = badge_rect.right + 20
-        card_w = 160
+        card_start_x = badge_rect.right + 12
+        card_w = 125
         card_h = 42
-        spacing = 15
+        spacing = 10
 
         # Card A: Score
         self._draw_stat_card(
@@ -180,23 +177,58 @@ class HUD:
             glow=is_new_record,
         )
 
-        # Card C: Snake Length
+        # Card C: Level Badge
+        lvl_label = f"⭐ Lv.{level}" + (" FRENZY" if level >= 4 else "")
+        lvl_color = TEXT_GOLD if level >= 4 else TEXT_ACCENT
         self._draw_stat_card(
             surface,
             card_start_x + (card_w + spacing) * 2,
             12,
-            card_w,
+            card_w + 10,
             card_h,
-            label="LENGTH",
-            value=f"📏 {length}",
-            value_color=TEXT_WHITE,
+            label="LEVEL",
+            value=lvl_label,
+            value_color=lvl_color,
+            border_color=(250, 204, 21, 140) if level >= 4 else CARD_BORDER,
         )
 
-        # Card D: Speed / Pace
+        # Card D: Timer (Level 4+) or Snake Length
+        card_d_x = card_start_x + (card_w + spacing) * 3 + 10
+        if timer_seconds is not None and level >= 4:
+            total_sec = max(0, int(timer_seconds))
+            mins = total_sec // 60
+            secs = total_sec % 60
+            timer_text = f"⏳ {mins:02d}:{secs:02d}"
+            timer_color = TEXT_RED if total_sec < 20 else TEXT_GOLD
+            self._draw_stat_card(
+                surface,
+                card_d_x,
+                12,
+                card_w + 10,
+                card_h,
+                label="2-MIN TIMER",
+                value=timer_text,
+                value_color=timer_color,
+                border_color=(239, 68, 68, 180) if total_sec < 20 else CARD_BORDER,
+            )
+        else:
+            self._draw_stat_card(
+                surface,
+                card_d_x,
+                12,
+                card_w,
+                card_h,
+                label="LENGTH",
+                value=f"📏 {length}",
+                value_color=TEXT_WHITE,
+            )
+
+        # Card E: Speed / Pace
+        card_e_x = card_d_x + (card_w + 10 if (timer_seconds is not None and level >= 4) else card_w) + spacing
         speed_level = max(1, min(10, int((260 - speed_ms) / 20) + 1))
         self._draw_stat_card(
             surface,
-            card_start_x + (card_w + spacing) * 3,
+            card_e_x,
             12,
             card_w,
             card_h,
@@ -370,66 +402,71 @@ class HUD:
         food_eaten: int,
         length: int,
         death_reason: str,
+        level: int = 1,
         is_new_record: bool = False,
     ):
         """Draw game over results dialog with stats and play again action."""
         self._draw_dim_backdrop(surface, alpha=195)
 
         card_w = 540
-        card_h = 390
+        card_h = 410
         card_x = (WINDOW_WIDTH - card_w) // 2
         card_y = (WINDOW_HEIGHT - card_h) // 2
 
         self._draw_dialog_box(surface, card_x, card_y, card_w, card_h)
 
-        # Game over title
-        go_title = self.font_title.render("GAME OVER", True, TEXT_RED)
+        # Title: Time's Up or Game Over
+        is_time_up = "time" in death_reason.lower()
+        title_text = "TIME'S UP!" if is_time_up else "GAME OVER"
+        title_color = TEXT_GOLD if is_time_up else TEXT_RED
+        go_title = self.font_title.render(title_text, True, title_color)
         surface.blit(
             go_title,
-            (card_x + (card_w - go_title.get_width()) // 2, card_y + 26),
+            (card_x + (card_w - go_title.get_width()) // 2, card_y + 22),
         )
 
         # Cause of death
         reason_surf = self.font_body.render(death_reason, True, TEXT_MUTED)
         surface.blit(
             reason_surf,
-            (card_x + (card_w - reason_surf.get_width()) // 2, card_y + 68),
+            (card_x + (card_w - reason_surf.get_width()) // 2, card_y + 64),
         )
 
         # New high score celebration banner
         if is_new_record:
-            rec_pill = pygame.Rect(card_x + 130, card_y + 98, 280, 28)
-            pygame.draw.rect(surface, (180, 83, 9), rec_pill, border_radius=14)
-            pygame.draw.rect(surface, TEXT_GOLD, rec_pill, width=1, border_radius=14)
+            rec_pill = pygame.Rect(card_x + 130, card_y + 92, 280, 26)
+            pygame.draw.rect(surface, (180, 83, 9), rec_pill, border_radius=13)
+            pygame.draw.rect(surface, TEXT_GOLD, rec_pill, width=1, border_radius=13)
             rec_surf = self.font_bold.render("🎉 NEW ALL-TIME RECORD! 🎉", True, TEXT_WHITE)
             surface.blit(
                 rec_surf,
-                (rec_pill.x + (rec_pill.w - rec_surf.get_width()) // 2, rec_pill.y + 5),
+                (rec_pill.x + (rec_pill.w - rec_surf.get_width()) // 2, rec_pill.y + 4),
             )
 
         # Stats summary box
-        stats_y = card_y + (138 if is_new_record else 115)
-        stats_box = pygame.Rect(card_x + 40, stats_y, card_w - 80, 130)
+        stats_y = card_y + (126 if is_new_record else 105)
+        stats_box = pygame.Rect(card_x + 40, stats_y, card_w - 80, 150)
         pygame.draw.rect(surface, (18, 25, 34), stats_box, border_radius=8)
         pygame.draw.rect(surface, (35, 48, 64), stats_box, width=1, border_radius=8)
 
         stats = [
             ("Final Score", f"🍎 {score}", TEXT_WHITE),
             ("High Score", f"🏆 {high_score}", TEXT_GOLD),
-            ("Apples Eaten", f"{food_eaten}", TEXT_ACCENT),
+            ("Level Reached", f"⭐ Level {level}" + (" (Frenzy)" if level >= 4 else ""), TEXT_GOLD if level >= 4 else TEXT_ACCENT),
+            ("Fruits Eaten", f"{food_eaten} fruits", TEXT_ACCENT),
             ("Snake Length", f"🐍 {length} segments", TEXT_WHITE),
         ]
 
-        sy = stats_box.y + 14
+        sy = stats_box.y + 12
         for label, val, color in stats:
             lbl_surf = self.font_body.render(label, True, TEXT_MUTED)
             val_surf = self.font_bold.render(val, True, color)
             surface.blit(lbl_surf, (stats_box.x + 20, sy))
             surface.blit(val_surf, (stats_box.right - val_surf.get_width() - 20, sy))
-            sy += 27
+            sy += 26
 
         # Action buttons prompt
-        action_y = stats_box.bottom + 18
+        action_y = stats_box.bottom + 16
         cta_rect = pygame.Rect(card_x + 70, action_y, card_w - 140, 46)
         pygame.draw.rect(surface, (34, 160, 80), cta_rect, border_radius=8)
         pygame.draw.rect(surface, (74, 222, 128), cta_rect, width=1, border_radius=8)

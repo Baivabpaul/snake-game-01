@@ -1,6 +1,7 @@
 /**
  * Realistic Snake Pro - Browser HTML5 Edition
- * 1:1 match of the Python Realistic Snake Pro game.
+ * Supports Multi-Level Progression, Fruit Varieties,
+ * 2-Minute Frenzy Mode after Level 4, and Big Golden Bonus Fruits.
  */
 
 (function () {
@@ -21,11 +22,17 @@
 
   // Speeds & Gameplay
   const INITIAL_SNAKE_LENGTH = 3;
-  const INITIAL_SPEED = 165; // ms per tick (slightly reduced, more relaxed pace)
+  const INITIAL_SPEED = 165; // ms per tick
   const MIN_SPEED = 65;
   const MAX_SPEED = 260;
   const SPEED_INCREMENT = 3;
-  const POINTS_PER_FOOD = 10;
+
+  // Level & Frenzy Constants
+  const LEVEL_THRESHOLDS = { 1: 5, 2: 10, 3: 15, 4: 30, 5: 50 };
+  const LEVEL_SPEEDS = { 1: 165, 2: 150, 3: 138, 4: 124, 5: 112 };
+  const LEVEL_MAX_FOODS = { 1: 1, 2: 2, 3: 3, 4: 6, 5: 8 };
+  const BONUS_DURATION = 14; // seconds before golden fruit disappears
+  const BONUS_INTERVAL = 22; // seconds between bonus spawns
 
   // Directions
   const Direction = {
@@ -40,7 +47,7 @@
     return d1.x === -d2.x && d1.y === -d2.y;
   }
 
-  // Web Audio Synthesizer (Zero external sound assets, 100% reliable)
+  // Web Audio Synthesizer
   class SoundManager {
     constructor() {
       this.enabled = true;
@@ -50,32 +57,32 @@
     init() {
       if (!this.ctx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          this.ctx = new AudioContext();
-        }
+        if (AudioContext) this.ctx = new AudioContext();
       }
       if (this.ctx && this.ctx.state === "suspended") {
         this.ctx.resume();
       }
     }
 
-    playEat() {
+    playEat(isBonus = false) {
       if (!this.enabled) return;
       this.init();
       if (!this.ctx) return;
 
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc.type = "sine";
+      osc.type = isBonus ? "triangle" : "sine";
       const now = this.ctx.currentTime;
-      osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(780, now + 0.1);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      const startFreq = isBonus ? 440 : 320;
+      const endFreq = isBonus ? 1100 : 780;
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, now + (isBonus ? 0.22 : 0.1));
+      gain.gain.setValueAtTime(isBonus ? 0.35 : 0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + (isBonus ? 0.24 : 0.12));
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.13);
+      osc.stop(now + (isBonus ? 0.25 : 0.13));
     }
 
     playDeath() {
@@ -152,7 +159,6 @@
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Specular core
       if (this.radius > 2) {
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
@@ -164,7 +170,7 @@
   }
 
   class FloatingText {
-    constructor(text, x, y, color = "#facc15", lifetime = 40) {
+    constructor(text, x, y, color = "#facc15", lifetime = 42) {
       this.text = text;
       this.x = x;
       this.y = y;
@@ -184,11 +190,271 @@
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = this.color;
-      ctx.font = "bold 18px -apple-system, sans-serif";
+      ctx.font = "bold 17px -apple-system, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(this.text, this.x, this.y);
       ctx.restore();
+    }
+  }
+
+  // Fruit Class (Supports Apple, Grapes, Orange, Strawberry, and Big Golden Bonus)
+  class Food {
+    constructor(kind = "apple", duration = 0) {
+      this.kind = kind;
+      this.isBonus = (kind === "golden");
+      this.duration = this.isBonus ? duration : 0;
+      this.maxDuration = this.duration;
+      this.x = 0;
+      this.y = 0;
+      this.animTimer = Math.random() * 1000;
+
+      // Points map
+      const pointsMap = { apple: 10, grapes: 20, orange: 30, strawberry: 40, golden: 100 };
+      this.points = pointsMap[kind] || 10;
+    }
+
+    get isExpired() {
+      return this.isBonus && this.duration <= 0;
+    }
+
+    update(dt) {
+      this.animTimer += dt;
+      if (this.isBonus && this.duration > 0) {
+        this.duration -= dt / 1000;
+      }
+    }
+
+    draw(ctx) {
+      const cx = ARENA_OFFSET_X + this.x * CELL_SIZE + CELL_SIZE / 2;
+      const cy = ARENA_OFFSET_Y + this.y * CELL_SIZE + CELL_SIZE / 2;
+      const bob = Math.sin(this.animTimer * (this.isBonus ? 0.008 : 0.005)) * (this.isBonus ? 2.2 : 1.5);
+      const fruitY = cy + bob;
+
+      // Drop shadow
+      ctx.save();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.beginPath();
+      const shadowW = CELL_SIZE * (this.isBonus ? 0.55 : 0.45);
+      ctx.ellipse(cx, cy + CELL_SIZE * 0.3, shadowW, CELL_SIZE * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (this.kind === "golden") {
+        this.drawGolden(ctx, cx, fruitY);
+      } else if (this.kind === "grapes") {
+        this.drawGrapes(ctx, cx, fruitY);
+      } else if (this.kind === "orange") {
+        this.drawOrange(ctx, cx, fruitY);
+      } else if (this.kind === "strawberry") {
+        this.drawStrawberry(ctx, cx, fruitY);
+      } else {
+        this.drawApple(ctx, cx, fruitY);
+      }
+    }
+
+    drawApple(ctx, cx, cy) {
+      const appleW = CELL_SIZE * 0.78;
+      const appleH = CELL_SIZE * 0.74;
+      const r = appleW / 2;
+
+      // Dark base lobe
+      ctx.fillStyle = "rgb(159, 18, 57)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 1, appleW / 2, appleH / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Main red body lobes
+      ctx.fillStyle = "rgb(225, 29, 72)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.22, cy + 1, r * 0.88, 0, Math.PI * 2);
+      ctx.arc(cx + r * 0.22, cy + 1, r * 0.88, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Highlight arc & glint
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx - 3, cy - 2, r * 0.65, Math.PI * 1.1, Math.PI * 1.6);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.beginPath();
+      ctx.arc(cx - appleW * 0.22, cy - appleH * 0.22, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Stem & Leaf
+      ctx.strokeStyle = "rgb(120, 72, 36)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - appleH * 0.38);
+      ctx.quadraticCurveTo(cx + 2, cy - appleH * 0.7, cx + 4, cy - appleH * 0.82);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgb(34, 197, 94)";
+      ctx.beginPath();
+      ctx.moveTo(cx + 2, cy - appleH * 0.55);
+      ctx.lineTo(cx + 9, cy - appleH * 0.75);
+      ctx.lineTo(cx + 12, cy - appleH * 0.6);
+      ctx.lineTo(cx + 5, cy - appleH * 0.45);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    drawGrapes(ctx, cx, cy) {
+      const berries = [
+        [-5, -3, 4.5], [0, -4, 4.8], [5, -3, 4.5],
+        [-3, 1, 4.6], [3, 1, 4.6],
+        [0, 5, 4.2]
+      ];
+      berries.forEach(([bx, by, br]) => {
+        ctx.fillStyle = "rgb(107, 33, 168)";
+        ctx.beginPath();
+        ctx.arc(cx + bx, cy + by + 1, br, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgb(147, 51, 234)";
+        ctx.beginPath();
+        ctx.arc(cx + bx, cy + by, br - 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgb(216, 180, 254)";
+        ctx.beginPath();
+        ctx.arc(cx + bx - br * 0.3, cy + by - br * 0.3, 1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Stem & leaf
+      ctx.strokeStyle = "rgb(120, 72, 36)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx + 2, cy - 11);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgb(34, 197, 94)";
+      ctx.beginPath();
+      ctx.moveTo(cx + 1, cy - 8);
+      ctx.lineTo(cx + 7, cy - 11);
+      ctx.lineTo(cx + 5, cy - 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    drawOrange(ctx, cx, cy) {
+      const r = CELL_SIZE * 0.38;
+      ctx.fillStyle = "rgb(194, 65, 12)";
+      ctx.beginPath();
+      ctx.arc(cx, cy + 1, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgb(249, 115, 22)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 0.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(254, 215, 170, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, r * 0.65, Math.PI * 1.1, Math.PI * 1.6);
+      ctx.stroke();
+
+      // Leaf
+      ctx.fillStyle = "rgb(34, 197, 94)";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r * 0.7);
+      ctx.lineTo(cx + 7, cy - r - 3);
+      ctx.lineTo(cx + 7, cy - r + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    drawStrawberry(ctx, cx, cy) {
+      const pts = [
+        [cx, cy + 9], [cx - 7, cy + 2], [cx - 8, cy - 4], [cx - 3, cy - 7],
+        [cx, cy - 5], [cx + 3, cy - 7], [cx + 8, cy - 4], [cx + 7, cy + 2]
+      ];
+      ctx.fillStyle = "rgb(185, 28, 28)";
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py + 1) : ctx.lineTo(px, py + 1)));
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "rgb(239, 68, 68)";
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+      ctx.closePath();
+      ctx.fill();
+
+      // Yellow seeds
+      ctx.fillStyle = "rgb(253, 224, 71)";
+      [[-3, -2], [3, -2], [-4, 1], [0, 2], [4, 1], [-2, 5], [2, 5], [0, 7]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(cx + sx, cy + sy, 1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Calyx crown
+      ctx.fillStyle = "rgb(34, 197, 94)";
+      ctx.beginPath();
+      [[cx - 6, cy - 7], [cx - 3, cy - 9], [cx, cy - 6], [cx + 3, cy - 9], [cx + 6, cy - 7], [cx, cy - 5]].forEach(
+        ([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py))
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    drawGolden(ctx, cx, cy) {
+      const pulse = (Math.sin(this.animTimer * 0.01) + 1.0) / 2.0;
+      const r = CELL_SIZE * 0.44 + pulse * 1.5;
+
+      // Aura
+      ctx.save();
+      const auraR = r * 1.8 + pulse * 3;
+      const grad = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, auraR);
+      grad.addColorStop(0, "rgba(250, 204, 21, 0.4)");
+      grad.addColorStop(1, "rgba(250, 204, 21, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, auraR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Gold sphere
+      ctx.fillStyle = "rgb(202, 138, 4)";
+      ctx.beginPath();
+      ctx.arc(cx, cy + 1, r + 1, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgb(250, 204, 21)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgb(254, 240, 138)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.25, cy - r * 0.25, r * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.3, cy - r * 0.3, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Countdown Timer Ring
+      if (this.maxDuration > 0 && this.duration > 0) {
+        const frac = Math.max(0, Math.min(1, this.duration / this.maxDuration));
+        ctx.strokeStyle = "rgba(60, 50, 20, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#facc15";
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+        ctx.stroke();
+      }
     }
   }
 
@@ -204,7 +470,6 @@
       arenaCtx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
     }
   }
-  // Subtle corner dots
   arenaCtx.fillStyle = "rgb(36, 52, 42)";
   for (let c = 1; c < GRID_COLUMNS; c++) {
     for (let r = 1; r < GRID_ROWS; r++) {
@@ -216,26 +481,29 @@
   class Game {
     constructor() {
       this.highScore = parseInt(localStorage.getItem("snake_high_score") || "0", 10);
-      this.state = "START"; // 'START', 'PLAYING', 'PAUSED', 'GAME_OVER'
+      this.state = "START";
       this.score = 0;
       this.foodEaten = 0;
+      this.level = 1;
+      this.levelFruitsEaten = 0;
+      this.isTimedMode = false;
+      this.timerSeconds = 120.0;
+      this.bonusSpawnTimer = 0.0;
+
       this.isNewRecord = false;
       this.deathReason = "";
 
       this.snake = [];
+      this.foods = [];
       this.direction = Direction.RIGHT;
       this.inputQueue = [];
       this.moveInterval = INITIAL_SPEED;
       this.moveTimer = 0;
 
-      // Realistic details
       this.isAlive = true;
       this.tongueTimer = 0;
       this.tongueFlicking = false;
       this.tongueFlickDuration = 0;
-
-      this.food = { x: 0, y: 0 };
-      this.foodAnimTimer = Math.random() * 1000;
 
       this.particles = [];
       this.floatingTexts = [];
@@ -258,6 +526,12 @@
       this.moveTimer = 0;
       this.score = 0;
       this.foodEaten = 0;
+      this.level = 1;
+      this.levelFruitsEaten = 0;
+      this.isTimedMode = false;
+      this.timerSeconds = 120.0;
+      this.bonusSpawnTimer = 0.0;
+
       this.isNewRecord = false;
       this.deathReason = "";
       this.isAlive = true;
@@ -268,21 +542,41 @@
 
       this.particles = [];
       this.floatingTexts = [];
+      this.foods = [];
 
-      this.spawnFood();
+      this.replenishFoods();
       this.state = toStart ? "START" : "PLAYING";
     }
 
-    spawnFood() {
+    getAvailableFruitKinds() {
+      if (this.level === 1) return ["apple"];
+      if (this.level === 2) return ["apple", "grapes"];
+      if (this.level === 3) return ["apple", "grapes", "orange"];
+      return ["apple", "grapes", "orange", "strawberry"];
+    }
+
+    replenishFoods() {
+      const targetCount = LEVEL_MAX_FOODS[this.level] || (this.level >= 4 ? 6 : 1);
+      const kinds = this.getAvailableFruitKinds();
+
       const occupied = new Set(this.snake.map((s) => `${s.x},${s.y}`));
+      this.foods.forEach((f) => occupied.add(`${f.x},${f.y}`));
+
       const free = [];
       for (let x = 0; x < GRID_COLUMNS; x++) {
         for (let y = 0; y < GRID_ROWS; y++) {
           if (!occupied.has(`${x},${y}`)) free.push({ x, y });
         }
       }
-      if (free.length > 0) {
-        this.food = free[Math.floor(Math.random() * free.length)];
+
+      while (this.foods.length < targetCount && free.length > 0) {
+        const idx = Math.floor(Math.random() * free.length);
+        const pos = free.splice(idx, 1)[0];
+        const kind = kinds[Math.floor(Math.random() * kinds.length)];
+        const newFood = new Food(kind);
+        newFood.x = pos.x;
+        newFood.y = pos.y;
+        this.foods.push(newFood);
       }
     }
 
@@ -327,13 +621,12 @@
         sound.playRecord();
       }
 
-      // Burst death particles
       const headPix = this.gridToPixel(this.snake[0].x, this.snake[0].y);
       this.emitFoodBurst(headPix.x, headPix.y);
     }
 
-    emitFoodBurst(x, y) {
-      const colors = ["#ef4444", "#f43f5e", "#fb7185", "#facc15", "#4ade80", "#ffffff"];
+    emitFoodBurst(x, y, customColors = null) {
+      const colors = customColors || ["#ef4444", "#f43f5e", "#fb7185", "#facc15", "#4ade80", "#ffffff"];
       for (let i = 0; i < 16; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 1.5 + Math.random() * 3.5;
@@ -347,8 +640,11 @@
     }
 
     update(dt) {
-      // Idle food animation & particles
-      this.foodAnimTimer += dt;
+      // 1. Update fruit animations & clean expired golden bonus fruits
+      this.foods.forEach((f) => f.update(dt));
+      this.foods = this.foods.filter((f) => !f.isExpired);
+      this.replenishFoods();
+
       this.particles = this.particles.filter((p) => p.update());
       this.floatingTexts = this.floatingTexts.filter((ft) => ft.update());
 
@@ -371,6 +667,44 @@
 
       if (this.state !== "PLAYING") return;
 
+      // 2. 2-Minute Timer Frenzy Mode (Level 4+)
+      if (this.isTimedMode) {
+        this.timerSeconds -= dt / 1000;
+        if (this.timerSeconds <= 0) {
+          this.timerSeconds = 0;
+          this.handleDeath(`Time's Up! You ate ${this.foodEaten} fruits in 2 minutes!`);
+          return;
+        }
+      }
+
+      // 3. Periodic Big Golden Bonus Fruit Spawn (Level 4+)
+      if (this.level >= 4) {
+        this.bonusSpawnTimer += dt / 1000;
+        if (this.bonusSpawnTimer >= BONUS_INTERVAL) {
+          this.bonusSpawnTimer = 0;
+          if (!this.foods.some((f) => f.isBonus)) {
+            const occupied = new Set(this.snake.map((s) => `${s.x},${s.y}`));
+            this.foods.forEach((f) => occupied.add(`${f.x},${f.y}`));
+            const free = [];
+            for (let x = 0; x < GRID_COLUMNS; x++) {
+              for (let y = 0; y < GRID_ROWS; y++) {
+                if (!occupied.has(`${x},${y}`)) free.push({ x, y });
+              }
+            }
+            if (free.length > 0) {
+              const pos = free[Math.floor(Math.random() * free.length)];
+              const golden = new Food("golden", BONUS_DURATION);
+              golden.x = pos.x;
+              golden.y = pos.y;
+              this.foods.push(golden);
+              const gPix = this.gridToPixel(pos.x, pos.y);
+              this.floatingTexts.push(new FloatingText("⭐ BONUS FRUIT!", gPix.x, gPix.y - 15, "#facc15"));
+            }
+          }
+        }
+      }
+
+      // 4. Movement Step
       this.moveTimer += dt;
       if (this.moveTimer >= this.moveInterval) {
         if (this.inputQueue.length > 0) {
@@ -381,29 +715,33 @@
         const nextX = head.x + this.direction.x;
         const nextY = head.y + this.direction.y;
 
-        // 1. Wall collision
+        // Wall collision
         if (nextX < 0 || nextX >= GRID_COLUMNS || nextY < 0 || nextY >= GRID_ROWS) {
           this.handleDeath("Crashed into the arena wall!");
           return;
         }
 
-        const willEat = nextX === this.food.x && nextY === this.food.y;
+        // Check Food Collision against all active fruits
+        const eatenIdx = this.foods.findIndex((f) => f.x === nextX && f.y === nextY);
+        const willEat = (eatenIdx !== -1);
+        const eatenFood = willEat ? this.foods[eatenIdx] : null;
 
-        // 2. Self collision
+        // Self collision
         const bodyToCheck = willEat ? this.snake : this.snake.slice(0, -1);
         if (bodyToCheck.some((seg) => seg.x === nextX && seg.y === nextY)) {
           this.handleDeath("Ran into your own tail!");
           return;
         }
 
-        // Move forward
+        // Advance snake
         this.snake.unshift({ x: nextX, y: nextY });
 
-        if (willEat) {
-          const speedBonus = Math.max(1, Math.floor((240 - this.moveInterval) / 30));
-          const earned = POINTS_PER_FOOD * speedBonus;
+        if (willEat && eatenFood) {
+          const speedBonus = Math.max(1, Math.floor((260 - this.moveInterval) / 30));
+          const earned = eatenFood.points * (eatenFood.isBonus ? 1 : speedBonus);
           this.score += earned;
           this.foodEaten++;
+          this.levelFruitsEaten++;
 
           if (this.score > this.highScore) {
             this.highScore = this.score;
@@ -411,13 +749,41 @@
             localStorage.setItem("snake_high_score", this.highScore.toString());
           }
 
-          const foodPix = this.gridToPixel(this.food.x, this.food.y);
-          this.emitFoodBurst(foodPix.x, foodPix.y);
-          this.floatingTexts.push(new FloatingText(`+${earned}`, foodPix.x, foodPix.y - 12));
-          sound.playEat();
+          const foodPix = this.gridToPixel(eatenFood.x, eatenFood.y);
+          this.emitFoodBurst(foodPix.x, foodPix.y, eatenFood.isBonus ? ["#facc15", "#fde047", "#ffffff"] : null);
+          const popupText = eatenFood.isBonus ? `+${earned} BONUS!` : `+${earned}`;
+          const popupColor = eatenFood.isBonus ? "#facc15" : "#4ade80";
+          this.floatingTexts.push(new FloatingText(popupText, foodPix.x, foodPix.y - 12, popupColor));
+          sound.playEat(eatenFood.isBonus);
+
+          // Remove eaten & replenish
+          this.foods.splice(eatenIdx, 1);
+          this.replenishFoods();
 
           this.moveInterval = Math.max(MIN_SPEED, this.moveInterval - SPEED_INCREMENT);
-          this.spawnFood();
+
+          // Level Progression Check
+          const target = LEVEL_THRESHOLDS[this.level] || 30;
+          if (this.levelFruitsEaten >= target) {
+            this.level++;
+            this.levelFruitsEaten = 0;
+
+            if (LEVEL_SPEEDS[this.level]) {
+              this.moveInterval = LEVEL_SPEEDS[this.level];
+            } else {
+              this.moveInterval = Math.max(MIN_SPEED, this.moveInterval - 10);
+            }
+
+            if (this.level >= 4 && !this.isTimedMode) {
+              this.isTimedMode = true;
+              this.timerSeconds = 120.0;
+            }
+
+            const headPix = this.gridToPixel(this.snake[0].x, this.snake[0].y);
+            this.emitFoodBurst(headPix.x, headPix.y);
+            const lvlMsg = `⭐ LEVEL ${this.level}!` + (this.level >= 4 ? " 2-MIN FRENZY!" : "");
+            this.floatingTexts.push(new FloatingText(lvlMsg, headPix.x, headPix.y - 20, "#facc15"));
+          }
         } else {
           this.snake.pop();
         }
@@ -427,123 +793,41 @@
     }
 
     render() {
-      // 1. Clear background
+      // 1. Background
       ctx.fillStyle = "rgb(15, 20, 26)";
       ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
       // 2. Arena Floor & Borders
       ctx.drawImage(arenaCanvas, ARENA_OFFSET_X, ARENA_OFFSET_Y);
-
-      // Outer frame
       ctx.strokeStyle = "rgb(45, 68, 52)";
       ctx.lineWidth = 2;
       ctx.strokeRect(ARENA_OFFSET_X - 1, ARENA_OFFSET_Y - 1, ARENA_WIDTH + 2, ARENA_HEIGHT + 2);
 
-      // 3. Render Food (Apple)
-      this.drawFood();
+      // 3. Render all active fruits
+      this.foods.forEach((f) => f.draw(ctx));
 
       // 4. Render Snake
       this.drawSnake();
 
-      // 5. Render Particles & Floating Text
+      // 5. Particles & Floating Texts
       this.particles.forEach((p) => p.draw(ctx));
       this.floatingTexts.forEach((ft) => ft.draw(ctx));
 
-      // 6. Top HUD
+      // 6. Top Header HUD & Footer
       this.drawTopHUD();
-
-      // 7. Footer Controls
       this.drawFooter();
 
-      // 8. Modal Overlays
+      // 7. Modal Overlays
       if (this.state === "START") this.drawStartScreen();
       else if (this.state === "PAUSED") this.drawPauseScreen();
       else if (this.state === "GAME_OVER") this.drawGameOverScreen();
-    }
-
-    drawFood() {
-      const pix = this.gridToPixel(this.food.x, this.food.y);
-      const cx = pix.x;
-      const cy = pix.y;
-      const bob = Math.sin(this.foodAnimTimer * 0.005) * 1.5;
-      const appleY = cy + bob;
-
-      // Drop shadow on ground
-      ctx.save();
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + CELL_SIZE * 0.3, CELL_SIZE * 0.45, CELL_SIZE * 0.22, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      const appleW = CELL_SIZE * 0.78;
-      const appleH = CELL_SIZE * 0.74;
-      const r = appleW / 2;
-
-      // Dark base lobe
-      ctx.fillStyle = "rgb(159, 18, 57)";
-      ctx.beginPath();
-      ctx.ellipse(cx, appleY + 1, appleW / 2, appleH / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Vibrant apple red lobes
-      ctx.fillStyle = "rgb(225, 29, 72)";
-      ctx.beginPath();
-      ctx.arc(cx - r * 0.22, appleY + 1, r * 0.88, 0, Math.PI * 2);
-      ctx.arc(cx + r * 0.22, appleY + 1, r * 0.88, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Warm blush
-      ctx.fillStyle = "rgba(200, 160, 40, 0.25)";
-      ctx.beginPath();
-      ctx.arc(cx, appleY + r * 0.5, r * 0.45, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Specular highlight arc
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(cx - 3, appleY - 2, r * 0.65, Math.PI * 1.1, Math.PI * 1.6);
-      ctx.stroke();
-
-      // Specular glint dot
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.beginPath();
-      ctx.arc(cx - appleW * 0.22, appleY - appleH * 0.22, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Woody curved stem
-      ctx.strokeStyle = "rgb(120, 72, 36)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(cx, appleY - appleH * 0.38);
-      ctx.quadraticCurveTo(cx + 2, appleY - appleH * 0.7, cx + 4, appleY - appleH * 0.82);
-      ctx.stroke();
-
-      // Green leaf
-      ctx.fillStyle = "rgb(34, 197, 94)";
-      ctx.beginPath();
-      ctx.moveTo(cx + 2, appleY - appleH * 0.55);
-      ctx.lineTo(cx + 9, appleY - appleH * 0.75);
-      ctx.lineTo(cx + 12, appleY - appleH * 0.6);
-      ctx.lineTo(cx + 5, appleY - appleH * 0.45);
-      ctx.closePath();
-      ctx.fill();
-
-      // Leaf vein
-      ctx.strokeStyle = "rgb(134, 239, 172)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(cx + 2, appleY - appleH * 0.55);
-      ctx.lineTo(cx + 10, appleY - appleH * 0.65);
-      ctx.stroke();
     }
 
     drawSnake() {
       const total = this.snake.length;
       const pixels = this.snake.map((s) => this.gridToPixel(s.x, s.y));
 
-      // 1. Ground Drop Shadow
+      // Ground Drop Shadow
       ctx.save();
       ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
       ctx.strokeStyle = "rgba(0, 0, 0, 0.38)";
@@ -567,14 +851,13 @@
       }
       ctx.restore();
 
-      // 2. Continuous Body Capsules
+      // Continuous Body Capsules
       for (let i = total - 1; i > 0; i--) {
         const curr = pixels[i];
         const prev = pixels[i - 1];
         const r = this.getSegmentRadius(i, total);
         const pr = this.getSegmentRadius(i - 1, total);
 
-        // Dark edge connector
         ctx.strokeStyle = "rgb(24, 115, 55)";
         ctx.lineWidth = (r + pr) * 0.92;
         ctx.lineCap = "round";
@@ -583,7 +866,6 @@
         ctx.lineTo(prev.x, prev.y);
         ctx.stroke();
 
-        // Vibrant body connector
         ctx.strokeStyle = "rgb(46, 180, 90)";
         ctx.lineWidth = Math.max(2, (r + pr) * 0.92 - 3);
         ctx.beginPath();
@@ -591,7 +873,6 @@
         ctx.lineTo(prev.x, prev.y);
         ctx.stroke();
 
-        // Base circular joint
         ctx.fillStyle = "rgb(24, 115, 55)";
         ctx.beginPath();
         ctx.arc(curr.x, curr.y, r, 0, Math.PI * 2);
@@ -602,13 +883,11 @@
         ctx.arc(curr.x, curr.y, r - 1.5, 0, Math.PI * 2);
         ctx.fill();
 
-        // 3D Dorsal highlight
         ctx.fillStyle = "rgb(110, 230, 145)";
         ctx.beginPath();
         ctx.arc(curr.x - r * 0.25, curr.y - r * 0.25, Math.max(1.5, r * 0.45), 0, Math.PI * 2);
         ctx.fill();
 
-        // Scale chevron dot
         if (i % 2 === 0 && r > 6) {
           ctx.fillStyle = "rgb(20, 105, 50)";
           ctx.beginPath();
@@ -617,7 +896,7 @@
         }
       }
 
-      // 3. Animated Forked Tongue
+      // Animated Forked Tongue
       const headPix = pixels[0];
       const dx = this.direction.x;
       const dy = this.direction.y;
@@ -631,7 +910,6 @@
 
         const tipX = headPix.x + dx * (CELL_SIZE * 0.48);
         const tipY = headPix.y + dy * (CELL_SIZE * 0.48);
-
         const stemEndX = tipX + dx * reach + ox * vibe;
         const stemEndY = tipY + dy * reach + oy * vibe;
 
@@ -642,7 +920,6 @@
         ctx.lineTo(stemEndX, stemEndY);
         ctx.stroke();
 
-        // Forks
         const forkLen = reach * 0.35;
         const forkSpread = reach * 0.25;
         ctx.beginPath();
@@ -653,7 +930,7 @@
         ctx.stroke();
       }
 
-      // 4. Directional Sculpted Head
+      // Head
       const headR = this.getSegmentRadius(0, total);
       const snoutX = headPix.x + dx * (headR * 0.35);
       const snoutY = headPix.y + dy * (headR * 0.35);
@@ -668,7 +945,6 @@
       ctx.arc(snoutX, snoutY, headR, 0, Math.PI * 2);
       ctx.fill();
 
-      // Crown highlight
       ctx.fillStyle = "rgb(110, 230, 145)";
       ctx.beginPath();
       ctx.arc(snoutX - dx * 2 - 2, snoutY - dy * 2 - 2, headR * 0.42, 0, Math.PI * 2);
@@ -683,7 +959,7 @@
         ctx.fill();
       });
 
-      // 5. Expressive Eyes
+      // Eyes
       const eyeFwd = headR * 0.15;
       const eyeLat = headR * 0.55;
       const eyeR = Math.max(2.5, headR * 0.3);
@@ -703,19 +979,16 @@
           ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
           ctx.fill();
 
-          // Focused pupil looking forward
           ctx.fillStyle = "rgb(20, 24, 28)";
           ctx.beginPath();
           ctx.arc(eyeX + dx * (eyeR * 0.35), eyeY + dy * (eyeR * 0.35), Math.max(1, eyeR * 0.6), 0, Math.PI * 2);
           ctx.fill();
 
-          // Glint
           ctx.fillStyle = "#ffffff";
           ctx.beginPath();
           ctx.arc(eyeX - 1, eyeY - 1, 1, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          // Knocked out X
           ctx.strokeStyle = "rgb(239, 68, 68)";
           ctx.lineWidth = 2;
           const s = eyeR * 0.9;
@@ -730,7 +1003,6 @@
     }
 
     drawTopHUD() {
-      // Header background
       ctx.fillStyle = "rgb(20, 27, 36)";
       ctx.fillRect(0, 0, WINDOW_WIDTH, ARENA_OFFSET_Y - 4);
       ctx.strokeStyle = "rgb(35, 48, 64)";
@@ -742,21 +1014,24 @@
 
       // Brand badge
       ctx.fillStyle = "rgb(24, 34, 46)";
-      this.roundRect(ctx, ARENA_OFFSET_X, 12, 175, 42, 8, true, true, "rgb(45, 62, 82)");
+      this.roundRect(ctx, ARENA_OFFSET_X, 12, 150, 42, 8, true, true, "rgb(45, 62, 82)");
       ctx.fillStyle = "#4ade80";
-      ctx.font = "bold 20px -apple-system, sans-serif";
-      ctx.fillText("🐍 SNAKE", ARENA_OFFSET_X + 12, 38);
+      ctx.font = "bold 18px -apple-system, sans-serif";
+      ctx.fillText("🐍 SNAKE", ARENA_OFFSET_X + 10, 37);
       ctx.fillStyle = "#facc15";
-      ctx.font = "11px -apple-system, sans-serif";
-      ctx.fillText("PRO", ARENA_OFFSET_X + 130, 36);
+      ctx.font = "10px -apple-system, sans-serif";
+      ctx.fillText("PRO", ARENA_OFFSET_X + 115, 36);
 
       // Stat Cards
-      const cardStartX = ARENA_OFFSET_X + 195;
-      const cardW = 160;
+      const cardStartX = ARENA_OFFSET_X + 162;
+      const cardW = 125;
       const cardH = 42;
-      const gap = 15;
+      const gap = 10;
 
+      // Card 1: Score
       this.drawStatCard(cardStartX, 12, cardW, cardH, "SCORE", `🍎 ${this.score}`, "#ffffff");
+
+      // Card 2: High Score
       this.drawStatCard(
         cardStartX + (cardW + gap),
         12,
@@ -767,9 +1042,54 @@
         this.isNewRecord ? "#facc15" : "#e2e8f0",
         this.isNewRecord ? "#facc15" : "rgb(45, 60, 78)"
       );
-      this.drawStatCard(cardStartX + (cardW + gap) * 2, 12, cardW, cardH, "LENGTH", `📏 ${this.snake.length}`, "#ffffff");
+
+      // Card 3: Level Badge
+      const lvlLabel = `⭐ Lv.${this.level}` + (this.level >= 4 ? " FRENZY" : "");
+      this.drawStatCard(
+        cardStartX + (cardW + gap) * 2,
+        12,
+        cardW + 10,
+        cardH,
+        "LEVEL",
+        lvlLabel,
+        this.level >= 4 ? "#facc15" : "#4ade80",
+        this.level >= 4 ? "rgba(250, 204, 21, 0.6)" : "rgb(45, 60, 78)"
+      );
+
+      // Card 4: 2-Min Timer (Level 4+) OR Length
+      const card4X = cardStartX + (cardW + gap) * 3 + 10;
+      if (this.isTimedMode && this.level >= 4) {
+        const totalSec = Math.max(0, Math.floor(this.timerSeconds));
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        const timeStr = `⏳ ${mins < 10 ? "0" : ""}${mins}:${secs < 10 ? "0" : ""}${secs}`;
+        const isUrgent = totalSec < 20;
+        this.drawStatCard(
+          card4X,
+          12,
+          cardW + 10,
+          cardH,
+          "2-MIN TIMER",
+          timeStr,
+          isUrgent ? "#ef4444" : "#facc15",
+          isUrgent ? "rgba(239, 68, 68, 0.8)" : "rgb(45, 60, 78)"
+        );
+      } else {
+        this.drawStatCard(card4X, 12, cardW, cardH, "LENGTH", `📏 ${this.snake.length}`, "#ffffff");
+      }
+
+      // Card 5: Speed / Pace
+      const card5X = card4X + (this.isTimedMode ? cardW + 10 : cardW) + gap;
       const speedLevel = Math.max(1, Math.min(10, Math.floor((260 - this.moveInterval) / 20) + 1));
-      this.drawStatCard(cardStartX + (cardW + gap) * 3, 12, cardW, cardH, "SPEED [+/-]", `⚡ Lv.${speedLevel} (${this.moveInterval}ms)`, "#4ade80");
+      this.drawStatCard(
+        card5X,
+        12,
+        cardW,
+        cardH,
+        "SPEED [+/-]",
+        `⚡ Lv.${speedLevel} (${this.moveInterval}ms)`,
+        "#4ade80"
+      );
     }
 
     drawStatCard(x, y, w, h, label, value, valColor, borderColor = "rgb(45, 60, 78)") {
@@ -782,7 +1102,7 @@
       ctx.fillText(label, x + 10, y + 15);
 
       ctx.fillStyle = valColor;
-      ctx.font = "bold 16px -apple-system, sans-serif";
+      ctx.font = "bold 15px -apple-system, sans-serif";
       ctx.fillText(value, x + 10, y + 33);
     }
 
@@ -811,7 +1131,7 @@
     drawStartScreen() {
       this.dimBackdrop(0.7);
       const cardW = 580;
-      const cardH = 420;
+      const cardH = 430;
       const cardX = (WINDOW_WIDTH - cardW) / 2;
       const cardY = (WINDOW_HEIGHT - cardH) / 2;
 
@@ -820,60 +1140,60 @@
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#4ade80";
-      ctx.font = "bold 30px -apple-system, sans-serif";
-      ctx.fillText("🐍 REALISTIC SNAKE PRO", WINDOW_WIDTH / 2, cardY + 48);
+      ctx.font = "bold 28px -apple-system, sans-serif";
+      ctx.fillText("🐍 REALISTIC SNAKE PRO", WINDOW_WIDTH / 2, cardY + 45);
 
       ctx.fillStyle = "rgb(140, 160, 180)";
-      ctx.font = "15px -apple-system, sans-serif";
-      ctx.fillText("Organic Sinuous Physics  •  3D Fruits  •  Dynamic Pace", WINDOW_WIDTH / 2, cardY + 80);
+      ctx.font = "14px -apple-system, sans-serif";
+      ctx.fillText("Level 1-3: Classic Feast  •  Level 4+: 2-Min Frenzy & 100+ Fruits!", WINDOW_WIDTH / 2, cardY + 75);
 
       // Record Pill
       ctx.fillStyle = "rgb(36, 48, 62)";
-      this.roundRect(ctx, cardX + 190, cardY + 105, 200, 32, 16, true, true, "rgb(60, 80, 105)");
+      this.roundRect(ctx, cardX + 190, cardY + 98, 200, 32, 16, true, true, "rgb(60, 80, 105)");
       ctx.fillStyle = "#facc15";
       ctx.font = "14px -apple-system, sans-serif";
-      ctx.fillText(`🏆 Best Record: ${this.highScore}`, WINDOW_WIDTH / 2, cardY + 126);
+      ctx.fillText(`🏆 Best Record: ${this.highScore}`, WINDOW_WIDTH / 2, cardY + 119);
 
       // Keybinds Box
       const boxW = cardW - 80;
-      const boxH = 150;
+      const boxH = 155;
       const boxX = cardX + 40;
-      const boxY = cardY + 155;
+      const boxY = cardY + 148;
       ctx.fillStyle = "rgb(18, 25, 34)";
       this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true, "rgb(35, 48, 64)");
 
       const instructions = [
         ["Move / Slither", "[W / A / S / D] or [Arrow Keys]"],
         ["Pause / Resume", "[SPACE] or [P]"],
-        ["Speed Pace", "[+] / [-] (adjust difficulty any time)"],
-        ["Quick Restart", "[R]"],
+        ["Fruit Variety", "Apples 🍎, Grapes 🍇, Oranges 🍊, Strawberries 🍓"],
+        ["Big Bonus Fruit", "⭐ Golden Fruit (100 Bonus Pts!)"],
       ];
 
       instructions.forEach(([action, key], idx) => {
-        const rowY = boxY + 28 + idx * 32;
+        const rowY = boxY + 26 + idx * 32;
         ctx.textAlign = "left";
         ctx.fillStyle = "#ffffff";
-        ctx.font = "14px -apple-system, sans-serif";
+        ctx.font = "13px -apple-system, sans-serif";
         ctx.fillText(action, boxX + 20, rowY);
 
         ctx.textAlign = "right";
         ctx.fillStyle = "#4ade80";
-        ctx.font = "bold 14px -apple-system, sans-serif";
+        ctx.font = "bold 13px -apple-system, sans-serif";
         ctx.fillText(key, boxX + boxW - 20, rowY);
       });
 
       // Play Button
       const ctaW = cardW - 180;
-      const ctaH = 48;
+      const ctaH = 46;
       const ctaX = cardX + 90;
-      const ctaY = cardY + 335;
+      const ctaY = cardY + 345;
       ctx.fillStyle = "rgb(34, 160, 80)";
       this.roundRect(ctx, ctaX, ctaY, ctaW, ctaH, 8, true, true, "#4ade80");
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 20px -apple-system, sans-serif";
-      ctx.fillText("Click or Press SPACE to Play", WINDOW_WIDTH / 2, ctaY + 31);
+      ctx.font = "bold 19px -apple-system, sans-serif";
+      ctx.fillText("Click or Press SPACE to Play", WINDOW_WIDTH / 2, ctaY + 30);
     }
 
     drawPauseScreen() {
@@ -893,7 +1213,7 @@
 
       ctx.fillStyle = "#ffffff";
       ctx.font = "15px -apple-system, sans-serif";
-      ctx.fillText(`Current Score: ${this.score}   |   Record: ${this.highScore}`, WINDOW_WIDTH / 2, cardY + 95);
+      ctx.fillText(`Current Score: ${this.score}   |   Level: ${this.level}`, WINDOW_WIDTH / 2, cardY + 95);
 
       const hints = [
         ["Press [SPACE] or [P]", "Resume Game"],
@@ -917,17 +1237,18 @@
     drawGameOverScreen() {
       this.dimBackdrop(0.75);
       const cardW = 540;
-      const cardH = 390;
+      const cardH = 410;
       const cardX = (WINDOW_WIDTH - cardW) / 2;
       const cardY = (WINDOW_HEIGHT - cardH) / 2;
 
       ctx.fillStyle = "rgb(22, 30, 40)";
       this.roundRect(ctx, cardX, cardY, cardW, cardH, 12, true, true, "rgb(45, 62, 82)");
 
+      const isTimeUp = this.deathReason.toLowerCase().includes("time");
       ctx.textAlign = "center";
-      ctx.fillStyle = "#ef4444";
+      ctx.fillStyle = isTimeUp ? "#facc15" : "#ef4444";
       ctx.font = "bold 32px -apple-system, sans-serif";
-      ctx.fillText("GAME OVER", WINDOW_WIDTH / 2, cardY + 46);
+      ctx.fillText(isTimeUp ? "TIME'S UP!" : "GAME OVER", WINDOW_WIDTH / 2, cardY + 44);
 
       ctx.fillStyle = "rgb(140, 160, 180)";
       ctx.font = "15px -apple-system, sans-serif";
@@ -935,16 +1256,16 @@
 
       if (this.isNewRecord) {
         ctx.fillStyle = "rgb(180, 83, 9)";
-        this.roundRect(ctx, cardX + 130, cardY + 95, 280, 28, 14, true, true, "#facc15");
+        this.roundRect(ctx, cardX + 130, cardY + 92, 280, 26, 13, true, true, "#facc15");
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 13px -apple-system, sans-serif";
-        ctx.fillText("🎉 NEW ALL-TIME RECORD! 🎉", WINDOW_WIDTH / 2, cardY + 114);
+        ctx.fillText("🎉 NEW ALL-TIME RECORD! 🎉", WINDOW_WIDTH / 2, cardY + 110);
       }
 
       // Stats box
-      const statY = cardY + (this.isNewRecord ? 135 : 112);
+      const statY = cardY + (this.isNewRecord ? 128 : 105);
       const statBoxW = cardW - 80;
-      const statBoxH = 135;
+      const statBoxH = 145;
       const statBoxX = cardX + 40;
       ctx.fillStyle = "rgb(18, 25, 34)";
       this.roundRect(ctx, statBoxX, statY, statBoxW, statBoxH, 8, true, true, "rgb(35, 48, 64)");
@@ -952,12 +1273,13 @@
       const stats = [
         ["Final Score", `🍎 ${this.score}`, "#ffffff"],
         ["High Score", `🏆 ${this.highScore}`, "#facc15"],
-        ["Apples Eaten", `${this.foodEaten}`, "#4ade80"],
+        ["Level Reached", `⭐ Level ${this.level}` + (this.level >= 4 ? " (Frenzy)" : ""), this.level >= 4 ? "#facc15" : "#4ade80"],
+        ["Fruits Eaten", `${this.foodEaten} fruits`, "#4ade80"],
         ["Snake Length", `🐍 ${this.snake.length} segments`, "#ffffff"],
       ];
 
       stats.forEach(([label, val, color], idx) => {
-        const sy = statY + 24 + idx * 28;
+        const sy = statY + 22 + idx * 26;
         ctx.textAlign = "left";
         ctx.fillStyle = "rgb(140, 160, 180)";
         ctx.font = "14px -apple-system, sans-serif";
@@ -973,7 +1295,7 @@
       const ctaW = cardW - 140;
       const ctaH = 46;
       const ctaX = cardX + 70;
-      const ctaY = statY + statBoxH + 18;
+      const ctaY = statY + statBoxH + 16;
       ctx.fillStyle = "rgb(34, 160, 80)";
       this.roundRect(ctx, ctaX, ctaY, ctaW, ctaH, 8, true, true, "#4ade80");
 
@@ -1006,7 +1328,6 @@
 
   // Keyboard Event Handlers
   window.addEventListener("keydown", (e) => {
-    // Audio unlock on user interaction
     sound.init();
 
     if (e.key === "r" || e.key === "R") {
@@ -1080,7 +1401,7 @@
     }
   });
 
-  // Canvas Click Handler (for Start & Play Again button clicks)
+  // Canvas Click Handler
   canvas.addEventListener("click", () => {
     sound.init();
     if (game.state === "START") {
@@ -1090,7 +1411,7 @@
     }
   });
 
-  // Touch Swipe Gesture Detection for Mobile WhatsApp players
+  // Mobile Touch Swipe Gesture Detection
   let touchStartX = 0;
   let touchStartY = 0;
 
@@ -1158,7 +1479,7 @@
     });
   }
 
-  // Top Nav Buttons: Sound, Pop-out Window & Fullscreen
+  // Top Nav Buttons: Sound & Fullscreen
   function updateSoundUI() {
     const btn = document.getElementById("btn-sound");
     const icon = document.getElementById("audio-icon");
