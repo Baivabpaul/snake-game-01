@@ -1025,8 +1025,7 @@
 
     if (e.key === "m" || e.key === "M") {
       sound.enabled = !sound.enabled;
-      const btn = document.getElementById("btn-sound");
-      if (btn) btn.textContent = `🔊 Audio: ${sound.enabled ? "ON" : "OFF"}`;
+      updateSoundUI();
       return;
     }
 
@@ -1160,11 +1159,20 @@
   }
 
   // Top Nav Buttons: Sound, Pop-out Window & Fullscreen
+  function updateSoundUI() {
+    const btn = document.getElementById("btn-sound");
+    const icon = document.getElementById("audio-icon");
+    const label = document.getElementById("audio-label");
+    if (icon) icon.textContent = sound.enabled ? "🔊" : "🔇";
+    if (label) label.textContent = `Sound: ${sound.enabled ? "ON" : "OFF"}`;
+    if (btn) btn.classList.toggle("audio-active", sound.enabled);
+  }
+
   const btnSound = document.getElementById("btn-sound");
   if (btnSound) {
     btnSound.addEventListener("click", () => {
       sound.enabled = !sound.enabled;
-      btnSound.textContent = `🔊 Audio: ${sound.enabled ? "ON" : "OFF"}`;
+      updateSoundUI();
     });
   }
 
@@ -1197,7 +1205,7 @@
 
   // Check if opened as dedicated mini-popup window
   if (window.opener && window.name === "SnakeGamePopup") {
-    document.body.classList.add("is-popup");
+    document.body.classList.add("is-popup-window");
   }
 
   // Main 60 FPS Animation Loop

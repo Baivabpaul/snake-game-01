@@ -5,46 +5,319 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🐍 Realistic Snake Pro</title>
 
-  <!-- Open Graph & WhatsApp / MS Teams Rich Link Previews -->
-  <meta property="og:title" content="🐍 Realistic Snake Pro - Play Now!">
-  <meta property="og:description" content="Realistic snake slithering, 3D juicy apples, high scores, and smooth controls. Click to play directly in your browser!">
+  <!-- Open Graph & WhatsApp / MS Teams Rich Previews -->
+  <meta property="og:title" content="🐍 Realistic Snake Pro - Play in Browser">
+  <meta property="og:description" content="Realistic snake slithering, 3D juicy apples, high scores, and smooth controls. Click to play in browser!">
   <meta property="og:type" content="website">
-  <meta name="theme-color" content="#0f141a">
+  <meta name="theme-color" content="#0b0f14">
 
-  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Reset & Base Setup */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 10%, #151d27 0%, #0b0f14 100%);
+      background-color: #0b0f14;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 16px 12px;
+    }
+
+    /* Container */
+    .app-container {
+      width: 100%;
+      max-width: 1024px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Top Glassmorphic Navigation Bar */
+    .top-navbar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(20, 28, 38, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #4ade80;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-pro-pill {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0b0f14;
+      background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+      padding: 2px 7px;
+      border-radius: 20px;
+      letter-spacing: 0.8px;
+    }
+
+    /* Action Buttons in Top Navbar */
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ctrl-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(30, 41, 59, 0.8);
+      color: #cbd5e1;
+      border: 1px solid rgba(71, 85, 105, 0.6);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      outline: none;
+    }
+
+    .ctrl-pill-btn:hover {
+      background: rgba(51, 65, 85, 0.9);
+      color: #ffffff;
+      border-color: rgba(148, 163, 184, 0.8);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .ctrl-pill-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+
+    .ctrl-pill-btn.audio-active {
+      border-color: rgba(74, 222, 128, 0.4);
+      color: #86efac;
+    }
+
+    /* Game Window Card */
+    .game-card-wrapper {
+      width: 100%;
+      aspect-ratio: 1000 / 700;
+      max-width: 1000px;
+      background: #0f141a;
+      border-radius: 12px;
+      border: 1px solid rgba(74, 222, 128, 0.18);
+      box-shadow: 
+        0 24px 60px -12px rgba(0, 0, 0, 0.85),
+        0 0 40px -10px rgba(34, 197, 94, 0.12);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+
+    /* Quick Shortcuts Sub-bar below canvas (Desktop) */
+    .shortcuts-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-size: 12px;
+      color: #64748b;
+      padding: 6px 16px;
+    }
+
+    .shortcut-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .key-badge {
+      background: rgba(30, 41, 59, 0.8);
+      color: #94a3b8;
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Mobile Virtual Touch Controller (Hidden on Desktop) */
+    .mobile-touch-panel {
+      display: none;
+      width: 100%;
+      max-width: 320px;
+      margin-top: 6px;
+    }
+
+    @media (hover: none) and (pointer: coarse), (max-width: 768px) {
+      .mobile-touch-panel {
+        display: flex;
+        justify-content: center;
+      }
+      .shortcuts-bar {
+        display: none;
+      }
+    }
+
+    .dpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 62px);
+      grid-template-rows: repeat(3, 54px);
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .dpad-touch-btn {
+      width: 100%;
+      height: 100%;
+      background: rgba(30, 41, 59, 0.85);
+      color: #e2e8f0;
+      border: 1px solid rgba(71, 85, 105, 0.7);
+      border-radius: 12px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      touch-action: manipulation;
+      transition: all 0.1s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .dpad-touch-btn:active {
+      background: #22c55e;
+      color: #ffffff;
+      border-color: #4ade80;
+      transform: scale(0.92);
+      box-shadow: 0 0 16px rgba(74, 222, 128, 0.5);
+    }
+
+    .dpad-touch-btn.center-btn {
+      font-size: 15px;
+      background: rgba(20, 28, 38, 0.9);
+      color: #facc15;
+      border-color: rgba(250, 204, 21, 0.4);
+    }
+
+    .dpad-btn-up    { grid-column: 2; grid-row: 1; }
+    .dpad-btn-left  { grid-column: 1; grid-row: 2; }
+    .dpad-btn-mid   { grid-column: 2; grid-row: 2; }
+    .dpad-btn-right { grid-column: 3; grid-row: 2; }
+    .dpad-btn-down  { grid-column: 2; grid-row: 3; }
+
+    /* Pop-out standalone window mode */
+    body.is-popup-window {
+      padding: 0;
+      justify-content: center;
+    }
+    body.is-popup-window .top-navbar,
+    body.is-popup-window .shortcuts-bar {
+      display: none;
+    }
+    body.is-popup-window .game-card-wrapper {
+      max-width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+    }
+  </style>
 </head>
 <body>
-  <!-- Top Quick Toolbar -->
-  <header class="top-nav">
-    <div class="nav-left">
-      <span class="logo-badge">🐍 SNAKE <small>PRO</small></span>
-    </div>
-    <div class="nav-right">
-      <button id="btn-sound" class="nav-btn" title="Toggle Sound">🔊 Audio: ON</button>
-      <button id="btn-popup" class="nav-btn" title="Open in compact desktop-like window">🗗 Pop-out Window</button>
-      <button id="btn-fullscreen" class="nav-btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
-    </div>
-  </header>
-
-  <!-- Main Game Container -->
-  <main class="game-wrapper">
-    <div class="canvas-card">
-      <canvas id="gameCanvas" width="1000" height="700"></canvas>
-    </div>
-
-    <!-- On-screen Virtual Controls for Mobile / Touch (WhatsApp users) -->
-    <div class="mobile-controls" id="mobileControls">
-      <div class="dpad">
-        <button class="dpad-btn up" id="ctrl-up" aria-label="Up">▲</button>
-        <div class="dpad-middle">
-          <button class="dpad-btn left" id="ctrl-left" aria-label="Left">◀</button>
-          <button class="dpad-btn center" id="ctrl-pause" aria-label="Pause">⏸</button>
-          <button class="dpad-btn right" id="ctrl-right" aria-label="Right">▶</button>
+  <div class="app-container">
+    <!-- Top Professional Glassmorphic Navigation Bar -->
+    <header class="top-navbar">
+      <div class="brand-group">
+        <div class="brand-tag">
+          <span>🐍 REALISTIC SNAKE</span>
+          <span class="brand-pro-pill">PRO</span>
         </div>
-        <button class="dpad-btn down" id="ctrl-down" aria-label="Down">▼</button>
+      </div>
+      <div class="action-group">
+        <button id="btn-sound" class="ctrl-pill-btn audio-active" title="Toggle Game Audio">
+          <span id="audio-icon">🔊</span>
+          <span id="audio-label">Sound: ON</span>
+        </button>
+        <button id="btn-popup" class="ctrl-pill-btn" title="Open in dedicated mini-window">
+          <span>🗗</span>
+          <span>Pop-out Window</span>
+        </button>
+        <button id="btn-fullscreen" class="ctrl-pill-btn" title="Toggle Fullscreen Mode">
+          <span>⛶</span>
+          <span>Fullscreen</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Game Play Window (Exact 1000x700 resolution preserved) -->
+    <main class="game-card-wrapper">
+      <canvas id="gameCanvas" width="1000" height="700"></canvas>
+    </main>
+
+    <!-- Desktop Keyboard Shortcuts Bar -->
+    <footer class="shortcuts-bar">
+      <span class="shortcut-tag"><span class="key-badge">WASD</span> / <span class="key-badge">ARROWS</span> Slither</span>
+      <span class="shortcut-tag"><span class="key-badge">SPACE</span> / <span class="key-badge">P</span> Pause</span>
+      <span class="shortcut-tag"><span class="key-badge">R</span> Restart</span>
+      <span class="shortcut-tag"><span class="key-badge">+ / -</span> Pace</span>
+      <span class="shortcut-tag"><span class="key-badge">M</span> Audio</span>
+    </footer>
+
+    <!-- Mobile Touch Floating Gamepad (Only visible on mobile touch devices) -->
+    <div class="mobile-touch-panel" id="mobileControls">
+      <div class="dpad-grid">
+        <button class="dpad-touch-btn dpad-btn-up" id="ctrl-up" aria-label="Up">▲</button>
+        <button class="dpad-touch-btn dpad-btn-left" id="ctrl-left" aria-label="Left">◀</button>
+        <button class="dpad-touch-btn dpad-btn-mid center-btn" id="ctrl-pause" aria-label="Pause">⏸</button>
+        <button class="dpad-touch-btn dpad-btn-right" id="ctrl-right" aria-label="Right">▶</button>
+        <button class="dpad-touch-btn dpad-btn-down" id="ctrl-down" aria-label="Down">▼</button>
       </div>
     </div>
-  </main>
+  </div>
 
   <script src="game.js"></script>
 </body>
